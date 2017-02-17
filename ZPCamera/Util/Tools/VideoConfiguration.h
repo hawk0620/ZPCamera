@@ -1,0 +1,164 @@
+#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
+#import "MediaTypeConfiguration.h"
+
+#define kSCVideoConfigurationDefaultCodec AVVideoCodecH264
+#define kSCVideoConfigurationDefaultScalingMode AVVideoScalingModeResizeAspectFill
+#define kSCVideoConfigurationDefaultBitrate 2000000
+
+typedef enum : NSUInteger {
+    SCWatermarkAnchorLocationTopLeft,
+    SCWatermarkAnchorLocationTopRight,
+    SCWatermarkAnchorLocationBottomLeft,
+    SCWatermarkAnchorLocationBottomRight
+} SCWatermarkAnchorLocation;
+
+@protocol SCVideoOverlay <NSObject>
+
+@optional
+
+/**
+ Called to determine whether setFrame:, updateWithVideoTime: and layoutIfNeeded should be called on the main thread.
+ You should avoid returning YES as much as possible from this method, since it will potentially
+ greatly reduce the encoding speed. Some views like UITextView requires to layout on the main thread. 
+ */
+- (BOOL)requiresUpdateOnMainThreadAtVideoTime:(NSTimeInterval)time videoSize:(CGSize)videoSize;
+
+/**
+ Update the underlying view with the given time.
+ This method will be called on the main thread if requiresVideoTimeUpdateOnMainThread returns true,
+ otherwise it will be called in an arbitrary queue managed by the SCAssetExportSession.
+ */
+- (void)updateWithVideoTime:(NSTimeInterval)time;
+
+@end
+
+@interface VideoConfiguration : MediaTypeConfiguration
+
+/**
+ Change the size of the video
+ If options has been changed, this property will be ignored
+ If this value is CGSizeZero, the input video size received
+ from the camera will be used
+ Default is CGSizeZero
+ */
+@property (assign, nonatomic) CGSize size;
+
+/**
+ Change the affine transform for the video
+ If options has been changed, this property will be ignored
+ */
+@property (assign, nonatomic) CGAffineTransform affineTransform;
+
+/**
+ Set the codec used for the video
+ Default is AVVideoCodecH264
+ */
+@property (copy, nonatomic) NSString *__nonnull codec;
+
+/**
+ Set the video scaling mode
+ */
+@property (copy, nonatomic) NSString *__nonnull scalingMode;
+
+/**
+ The maximum framerate that this RecordSession should handle
+ If the camera appends too much frames, they will be dropped.
+ If this property's value is 0, it will use the current video
+ framerate from the camera.
+ */
+@property (assign, nonatomic) CMTimeScale maxFrameRate;
+
+/**
+ The time scale of the video
+ A value more than 1 will make the buffers last longer, it creates
+ a slow motion effect. A value less than 1 will make the buffers be
+ shorter, it creates a timelapse effect.
+ 
+ Only used in SCRecorder.
+ */
+@property (assign, nonatomic) CGFloat timeScale;
+
+/**
+ If true and videoSize is CGSizeZero, the videoSize
+ used will equal to the minimum width or height found,
+ thus making the video square.
+ */
+@property (assign, nonatomic) BOOL sizeAsSquare;
+
+/**
+ If true, each frame will be encoded as a keyframe
+ This is needed if you want to merge the recordSegments using
+ the passthrough preset. This will seriously impact the video
+ size. You can set this to NO and change the recordSegmentsMergePreset if you want
+ a better quality/size ratio, but the merge will be slower.
+ Default is NO
+ */
+@property (assign, nonatomic) BOOL shouldKeepOnlyKeyFrames;
+
+/**
+ If YES, the affineTransform will be ignored and the output affineTransform
+ will be the same as the input asset.
+ 
+ Only used in SCAssetExportSession.
+ */
+@property (assign, nonatomic) BOOL keepInputAffineTransform;
+
+/**
+ The video composition to use.
+ 
+ Only used in SCAssetExportSession.
+ */
+@property (strong, nonatomic) AVVideoComposition *__nullable composition;
+
+/**
+ The watermark to use. If the composition is not set, this watermark
+ image will be applied on the exported video.
+ 
+ Only used in SCAssetExportSession.
+ */
+@property (strong, nonatomic) UIImage *__nullable watermarkImage;
+
+/**
+ The watermark image location and size in the input video frame coordinates.
+ 
+ Only used in SCAssetExportSession.
+ */
+@property (assign, nonatomic) CGRect watermarkFrame;
+
+/**
+ Specify a buffer size to use. By default the SCAssetExportSession tries
+ to figure out which size to use by looking at the composition and the natural
+ size of the inputAsset. If the filter you set return back an image with a different
+ size, you should put the output size here.
+ 
+ Only used in SCAssetExportSession.
+ Default is CGSizeZero
+ */
+@property (assign, nonatomic) CGSize bufferSize;
+
+/**
+ Set a specific key to the video profile
+ */
+@property (assign, nonatomic) NSString *__nullable profileLevel;
+
+/**
+ The overlay view that will be drawn on top of the video.
+ 
+ Only used in SCAssetExportSession.
+ */
+@property (strong, nonatomic) UIView<SCVideoOverlay> *__nullable overlay;
+
+/**
+ The watermark anchor location.
+ 
+ Default is top left
+ 
+ Only used in SCAssetExportSession.
+ */
+@property (assign, nonatomic) SCWatermarkAnchorLocation watermarkAnchorLocation;
+
+
+- (NSDictionary *__nonnull)createAssetWriterOptionsWithVideoSize:(CGSize)videoSize;
+
+@end

@@ -1,0 +1,16 @@
+//
+//  ZPCamera-Prefix.pch
+//  ZPCamera
+//
+//  Created by 陈浩 on 15/12/5.
+//  Copyright © 2015年 陈浩. All rights reserved.
+//
+
+#ifndef ZPCamera_Prefix_pch
+#define ZPCamera_Prefix_pch
+
+// Include any system framework and library headers here that should be included in all compilation units.
+// You will also need to set the Prefix Header build setting of one or more of your targets to reference this file.
+#import "Constants.h"
+
+#endif /* ZPCamera_Prefix_pch */

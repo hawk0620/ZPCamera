@@ -1,0 +1,150 @@
+#import "RecordSessionSegment.h"
+#import "RecordSession.h"
+
+@interface RecordSessionSegment() {
+    AVAsset *_asset;
+    __weak UIImage *_thumbnail;
+    __weak UIImage *_lastImage;
+}
+
+@end
+
+@implementation RecordSessionSegment
+
+- (instancetype)initWithDictionaryRepresentation:(NSDictionary *)dictionary directory:(NSString *)directory {
+    NSString *filename = dictionary[RecordSessionSegmentFilenameKey];
+    NSDictionary *info = dictionary[RecordSessionSegmentInfoKey];
+    
+    if (filename != nil) {
+        NSURL *url = [RecordSessionSegment segmentURLForFilename:filename andDirectory:directory];
+        return [self initWithURL:url info:info];
+    }
+    
+    return nil;
+}
+
+- (instancetype)initWithURL:(NSURL *)url info:(NSDictionary *)info {
+    self = [self init];
+    
+    if (self) {
+        _url = url;
+        _info = info;
+    }
+    
+    return self;
+}
+
+- (void)deleteFile {
+    NSError *error = nil;
+    [[NSFileManager defaultManager] removeItemAtURL:_url error:&error];
+    _url = nil;
+    _asset = nil;
+}
+
+- (AVAsset *)asset {
+    if (_asset == nil) {
+        _asset = [AVAsset assetWithURL:_url];
+    }
+    
+    return _asset;
+}
+
+- (CMTime)duration {
+    return [self asset].duration;
+}
+
+- (UIImage *)thumbnail {
+    UIImage *image = _thumbnail;
+    if (image == nil) {
+        AVAssetImageGenerator *imageGenerator = [[AVAssetImageGenerator alloc] initWithAsset:self.asset];
+        imageGenerator.appliesPreferredTrackTransform = YES;
+        
+        NSError *error = nil;
+        CGImageRef thumbnailImage = [imageGenerator copyCGImageAtTime:kCMTimeZero actualTime:nil error:&error];
+        
+        if (error == nil) {
+            image = [UIImage imageWithCGImage:thumbnailImage];
+            _thumbnail = image;
+        } else {
+            NSLog(@"Unable to generate thumbnail for %@: %@", self.url, error.localizedDescription);
+        }
+    }
+    
+    return image;
+}
+
+- (UIImage *)lastImage {
+    UIImage *image = _lastImage;
+    if (image == nil) {
+        AVAssetImageGenerator *imageGenerator = [[AVAssetImageGenerator alloc] initWithAsset:self.asset];
+        imageGenerator.appliesPreferredTrackTransform = YES;
+        
+        NSError *error = nil;
+        CGImageRef lastImage = [imageGenerator copyCGImageAtTime:self.duration actualTime:nil error:&error];
+        
+        if (error == nil) {
+            image = [UIImage imageWithCGImage:lastImage];
+            _lastImage = image;
+        } else {
+            NSLog(@"Unable to generate lastImage for %@: %@", self.url, error.localizedDescription);
+        }
+    }
+    
+    return image;
+}
+
+- (float)frameRate {
+    NSArray *tracks = [self.asset tracksWithMediaType:AVMediaTypeVideo];
+    
+    if (tracks.count == 0) {
+        return 0;
+    }
+    
+    AVAssetTrack *videoTrack = [tracks firstObject];
+    
+    return videoTrack.nominalFrameRate;
+}
+
+- (void)setUrl:(NSURL *)url {
+    _url = url;
+    _asset = nil;
+}
+
+- (NSDictionary *)dictionaryRepresentation {
+    if (self.info == nil) {
+        return @{ RecordSessionSegmentFilenameKey : self.url.lastPathComponent };
+    } else {
+        return @{
+                 RecordSessionSegmentFilenameKey : self.url.lastPathComponent,
+                 RecordSessionSegmentInfoKey : self.info
+                 };
+    }
+}
+
+- (BOOL)fileUrlExists {
+    return [[NSFileManager defaultManager] fileExistsAtPath:self.url.path];
+}
+
++ (NSURL *)segmentURLForFilename:(NSString *)filename andDirectory:(NSString *)directory {
+    NSURL *directoryUrl = nil;
+    
+    if ([SCRecordSessionTemporaryDirectory isEqualToString:directory]) {
+        directoryUrl = [NSURL fileURLWithPath:NSTemporaryDirectory()];
+    } else if ([SCRecordSessionCacheDirectory isEqualToString:directory]) {
+        NSArray *myPathList = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
+        directoryUrl = [NSURL fileURLWithPath:myPathList.firstObject];
+    } else if ([SCRecordSessionDocumentDirectory isEqualToString:directory]) {
+        NSArray *myPathList = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+        directoryUrl = [NSURL fileURLWithPath:myPathList.firstObject];
+    } else {
+        directoryUrl = [NSURL fileURLWithPath:directory];
+    }
+    
+    return [directoryUrl URLByAppendingPathComponent:filename];
+}
+
++ (RecordSessionSegment *)segmentWithURL:(NSURL *)url info:(NSDictionary *)info {
+    return [[RecordSessionSegment alloc] initWithURL:url info:info];
+}
+
+@end
