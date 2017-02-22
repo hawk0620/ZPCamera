@@ -14,8 +14,12 @@
 
 #define kMinTimeBetweenAppend 0.004
 
+static char* FocusContext = "FocusContext";
+static char* ExposureContext = "ExposureContext";
+
 @interface RecoderManager ()
 
+@property (strong, nonatomic) AVCaptureVideoPreviewLayer *previewLayer;
 @property (assign, nonatomic) SCContextType contextType;
 @property (strong, nonatomic) AVCaptureStillImageOutput *stillImageOutput;
 @property (strong, nonatomic) SCContext *context;
@@ -24,13 +28,11 @@
 @end
 
 @implementation RecoderManager {
-    
+    BOOL _adjustingFocus;
     BOOL _shouldAutoresumeRecording;
-    
     double _lastAppendedVideoTime;
-    
     BOOL requiresFrontCameraTextureCacheCorruptionWorkaround;
-    
+    BOOL needsContinuousFocus;
 }
 
 static CGContextRef CreateContextFromPixelBuffer(CVPixelBufferRef pixelBuffer) {
@@ -54,7 +56,6 @@ static CGContextRef CreateContextFromPixelBuffer(CVPixelBufferRef pixelBuffer) {
         
         _initializeSessionLazily = YES;
         _resetZoomOnChangeDevice = YES;
-//        _videoOrientation = AVCaptureVideoOrientationPortrait;
         _maxRecordDuration = kCMTimeInvalid;
 //        self.device = AVCaptureDevicePositionBack;
 //        _lastVideoBuffer = [SampleBufferHolder new];
@@ -65,7 +66,6 @@ static CGContextRef CreateContextFromPixelBuffer(CVPixelBufferRef pixelBuffer) {
         
         _videoConfiguration = [VideoConfiguration new];
         _audioConfiguration = [AudioConfiguration new];
-        //        _photoConfiguration = [SCPhotoConfiguration new];
         
 //        [_videoConfiguration addObserver:self forKeyPath:@"enabled" options:NSKeyValueObservingOptionNew context:SCRecorderVideoEnabledContext];
 //        [_audioConfiguration addObserver:self forKeyPath:@"enabled" options:NSKeyValueObservingOptionNew context:SCRecorderAudioEnabledContext];
@@ -79,13 +79,12 @@ static CGContextRef CreateContextFromPixelBuffer(CVPixelBufferRef pixelBuffer) {
         
         [self reconfigureVideoInput:YES audioInput:YES];
         
-        [self updateVideoOrientation];
-        
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector( captureSessionDidStartRunning: ) name:AVCaptureSessionDidStartRunningNotification object:_captureSession];
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(applicationDidEnterBackground:) name:UIApplicationDidEnterBackgroundNotification object:nil];
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(applicationDidBecomeActive:) name:UIApplicationDidBecomeActiveNotification object:nil];
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(sessionInterrupted:) name:AVAudioSessionInterruptionNotification object:nil];
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(sessionRuntimeError:) name:AVCaptureSessionRuntimeErrorNotification object:self];
+        [[NSNotificationCenter defaultCenter] addObserver:self  selector:@selector(subjectAreaDidChange) name:AVCaptureDeviceSubjectAreaDidChangeNotification object:nil];
         
         _stillImageOutput = [[AVCaptureStillImageOutput alloc] init];
         
@@ -127,6 +126,16 @@ static CGContextRef CreateContextFromPixelBuffer(CVPixelBufferRef pixelBuffer) {
         if ( [_captureSession canAddOutput:_stillImageOutput] ) {
             [_captureSession addOutput:_stillImageOutput];
         }
+        
+        _previewLayer = [[AVCaptureVideoPreviewLayer alloc] init];
+        _previewLayer.videoGravity = AVLayerVideoGravityResizeAspectFill;
+        _previewLayer.session = _captureSession;
+        _previewLayer.frame = ScreenBounds;
+        
+        if ( [_previewLayer respondsToSelector:@selector(connection)] ) {
+            if ( [_previewLayer.connection isVideoOrientationSupported] )
+                [_previewLayer.connection setVideoOrientation:AVCaptureVideoOrientationPortrait];
+        }
     }
     return self;
 }
@@ -162,8 +171,25 @@ static CGContextRef CreateContextFromPixelBuffer(CVPixelBufferRef pixelBuffer) {
     }
 }
 
+- (void)subjectAreaDidChange {
+    [self focusCenter];
+}
+
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+    if (_captureSession != nil) {
+        for (AVCaptureDeviceInput *input in _captureSession.inputs) {
+            [_captureSession removeInput:input];
+            if ([input.device hasMediaType:AVMediaTypeVideo]) {
+                [self removeVideoObservers:input.device];
+            }
+        }
+        for (AVCaptureOutput *output in _captureSession.outputs) {
+            [_captureSession removeOutput:output];
+        }
+        _previewLayer.session = nil;
+        _captureSession = nil;
+    }
 }
 
 - (void)setupContextIfNeeded {
@@ -368,7 +394,6 @@ static CGContextRef CreateContextFromPixelBuffer(CVPixelBufferRef pixelBuffer) {
                     [NSThread sleepForTimeInterval:timeToWait];
                 }
                 BOOL isFirstVideoBuffer = !recordSession.currentSegmentHasVideo;
-                //                NSLog(@"APPENDING");
                 [self appendVideoSampleBuffer:sampleBuffer toRecordSession:recordSession duration:duration connection:connection completion:^(BOOL success) {
                     _lastAppendedVideoTime = CACurrentMediaTime();
                     if (success) {
@@ -554,51 +579,6 @@ static CGContextRef CreateContextFromPixelBuffer(CVPixelBufferRef pixelBuffer) {
     return nameVar;
 }
 
-- (void)setVideoOrientation:(AVCaptureVideoOrientation)videoOrientation {
-    _videoOrientation = videoOrientation;
-    [self updateVideoOrientation];
-}
-
-- (AVCaptureVideoOrientation)actualVideoOrientation {
-    AVCaptureVideoOrientation videoOrientation = _videoOrientation;
-    
-    if (_autoSetVideoOrientation) {
-        UIDeviceOrientation deviceOrientation = [[UIDevice currentDevice] orientation];
-        
-        switch (deviceOrientation) {
-            case UIDeviceOrientationLandscapeLeft:
-                videoOrientation = AVCaptureVideoOrientationLandscapeRight;
-                break;
-            case UIDeviceOrientationLandscapeRight:
-                videoOrientation = AVCaptureVideoOrientationLandscapeLeft;
-                break;
-            case UIDeviceOrientationPortrait:
-                videoOrientation = AVCaptureVideoOrientationPortrait;
-                break;
-            case UIDeviceOrientationPortraitUpsideDown:
-                videoOrientation = AVCaptureVideoOrientationPortraitUpsideDown;
-                break;
-            default:
-                break;
-        }
-    }
-    
-    return videoOrientation;
-}
-
-- (void)updateVideoOrientation {
-    if (!_session.currentSegmentHasAudio && !_session.currentSegmentHasVideo) {
-        [_session deinitialize];
-    }
-    
-    AVCaptureVideoOrientation videoOrientation = [self actualVideoOrientation];
-    AVCaptureConnection *videoConnection = [videoOutput connectionWithMediaType:AVMediaTypeVideo];
-    
-    if ([videoConnection isVideoOrientationSupported]) {
-        videoConnection.videoOrientation = videoOrientation;
-    }
-}
-
 - (AVCaptureDevice*)audioDevice {
     if (!self.audioConfiguration.enabled) {
         return nil;
@@ -615,18 +595,42 @@ static CGContextRef CreateContextFromPixelBuffer(CVPixelBufferRef pixelBuffer) {
     return [RecorderTools videoDeviceForPosition:_device];
 }
 
+- (AVCaptureConnection*)videoConnection {
+    for (AVCaptureConnection * connection in videoOutput.connections) {
+        for (AVCaptureInputPort * port in connection.inputPorts) {
+            if ([port.mediaType isEqual:AVMediaTypeVideo]) {
+                return connection;
+            }
+        }
+    }
+    return nil;
+}
+
+- (void)configureVideoStabilization {
+    AVCaptureConnection *videoConnection = [self videoConnection];
+    if ([videoConnection isVideoStabilizationSupported]) {
+        if ([videoConnection respondsToSelector:@selector(setPreferredVideoStabilizationMode:)]) {
+            videoConnection.preferredVideoStabilizationMode = AVCaptureVideoStabilizationModeStandard;
+        }
+    }
+}
+
+- (void)configureDevice:(AVCaptureDevice*)newDevice mediaType:(NSString*)mediaType error:(NSError**)error {
+    AVCaptureDeviceInput *currentInput = [self currentDeviceInputForMediaType:mediaType];
+    
+    if (currentInput) {
+        [self addVideoObservers:currentInput.device];
+        [self configureVideoStabilization];
+    }
+}
+
 - (void)reconfigureVideoInput:(BOOL)shouldConfigureVideo audioInput:(BOOL)shouldConfigureAudio {
     if (_captureSession != nil) {
         [_captureSession beginConfiguration];
         
-//        NSError *videoError = nil;
+        NSError *videoError = nil;
         if (shouldConfigureVideo) {
-//            [self configureDevice:[self videoDevice] mediaType:AVMediaTypeVideo error:&videoError];
-            [self videoDevice];
-//            _transformFilter = nil;
-            dispatch_sync(_sessionQueue, ^{
-                [self updateVideoOrientation];
-            });
+            [self configureDevice:[self videoDevice] mediaType:AVMediaTypeVideo error:&videoError];
         }
         
         if (shouldConfigureAudio) {
@@ -680,12 +684,42 @@ static CGContextRef CreateContextFromPixelBuffer(CVPixelBufferRef pixelBuffer) {
     }
 }
 
+- (void)addVideoObservers:(AVCaptureDevice*)videoDevice {
+    [videoDevice addObserver:self forKeyPath:@"adjustingFocus" options:NSKeyValueObservingOptionNew context:FocusContext];
+    [videoDevice addObserver:self forKeyPath:@"adjustingExposure" options:NSKeyValueObservingOptionNew context:ExposureContext];
+}
+
+- (void)removeVideoObservers:(AVCaptureDevice*)videoDevice {
+    [videoDevice removeObserver:self forKeyPath:@"adjustingFocus"];
+    [videoDevice removeObserver:self forKeyPath:@"adjustingExposure"];
+}
+
 - (BOOL)audioEnabledAndReady {
     return !_audioConfiguration.shouldIgnore;
 }
 
 - (BOOL)videoEnabledAndReady {
     return !_videoConfiguration.shouldIgnore;
+}
+
+- (BOOL)isAdjustingFocus {
+    return _adjustingFocus;
+}
+
+- (void)setAdjustingExposure:(BOOL)adjustingExposure {
+    if (_isAdjustingExposure != adjustingExposure) {
+        [self willChangeValueForKey:@"isAdjustingExposure"];
+        _isAdjustingExposure = adjustingExposure;
+        [self didChangeValueForKey:@"isAdjustingExposure"];
+    }
+}
+
+- (void)setAdjustingFocus:(BOOL)adjustingFocus {
+    if (_adjustingFocus != adjustingFocus) {
+        [self willChangeValueForKey:@"isAdjustingFocus"];
+        _adjustingFocus = adjustingFocus;
+        [self didChangeValueForKey:@"isAdjustingFocus"];
+    }
 }
 
 + (BOOL)isSessionQueue {
@@ -698,10 +732,113 @@ static CGContextRef CreateContextFromPixelBuffer(CVPixelBufferRef pixelBuffer) {
         [_recoderManagerDelegate captureSessionDidStartRunning];
 }
 
-- (BOOL)hasMultipleCameras
-{
+#pragma mark - Camera Support Method
+- (BOOL)hasMultipleCameras {
     return [[AVCaptureDevice devicesWithMediaType:AVMediaTypeVideo] count] > 1 ? YES : NO;
 }
 
+- (BOOL)hasFlash {
+    return _gpuVideoInput.device.hasFlash;
+}
+
+- (BOOL)exposureSupported {
+    return [self.currentVideoDeviceInput device].isExposurePointOfInterestSupported;
+}
+
+- (BOOL)focusSupported {
+    return [self currentVideoDeviceInput].device.isFocusPointOfInterestSupported;
+}
+
+- (CGPoint)focusPointOfInterest {
+    return [self.currentVideoDeviceInput device].focusPointOfInterest;
+}
+
+- (CGPoint)convertToPointOfInterestFromViewCoordinates:(CGPoint)viewCoordinates {
+    return [self.previewLayer captureDevicePointOfInterestForPoint:viewCoordinates];
+}
+
+#pragma mark - Focus And Exposure
+- (void)applyPoint:(CGPoint)point continuousMode:(BOOL)continuousMode {
+    AVCaptureDevice *device = [self.currentVideoDeviceInput device];
+    AVCaptureFocusMode focusMode = continuousMode ? AVCaptureFocusModeContinuousAutoFocus : AVCaptureFocusModeAutoFocus;
+    AVCaptureExposureMode exposureMode = continuousMode ? AVCaptureExposureModeContinuousAutoExposure : AVCaptureExposureModeAutoExpose;
+    AVCaptureWhiteBalanceMode whiteBalanceMode = continuousMode ? AVCaptureWhiteBalanceModeContinuousAutoWhiteBalance : AVCaptureWhiteBalanceModeAutoWhiteBalance;
+    
+    NSError *error;
+    if ([device lockForConfiguration:&error]) {
+        BOOL focusing = NO;
+        BOOL adjustingExposure = NO;
+        
+        if (device.isFocusPointOfInterestSupported) {
+            device.focusPointOfInterest = point;
+        }
+        if ([device isFocusModeSupported:focusMode]) {
+            device.focusMode = focusMode;
+            focusing = YES;
+        }
+        
+        if (device.isExposurePointOfInterestSupported) {
+            device.exposurePointOfInterest = point;
+        }
+        
+        if ([device isExposureModeSupported:exposureMode]) {
+            device.exposureMode = exposureMode;
+            adjustingExposure = YES;
+        }
+        
+        if ([device isWhiteBalanceModeSupported:whiteBalanceMode]) {
+            device.whiteBalanceMode = whiteBalanceMode;
+        }
+        
+        device.subjectAreaChangeMonitoringEnabled = !continuousMode;
+        
+        [device unlockForConfiguration];
+        
+        if (focusMode != AVCaptureFocusModeContinuousAutoFocus && focusing) {
+            [self setAdjustingFocus:YES];
+        }
+        
+        if (exposureMode != AVCaptureExposureModeContinuousAutoExposure && adjustingExposure) {
+            [self setAdjustingExposure:YES];
+        }
+    }
+}
+
+- (void)focusAtPoint:(CGPoint)point {
+    [self applyPoint:point continuousMode:NO];
+}
+
+- (void)continuousFocusAtPoint:(CGPoint)point {
+    [self applyPoint:point continuousMode:YES];
+}
+
+- (void)focusCenter {
+    needsContinuousFocus = YES;
+    [self focusAtPoint:CGPointMake(0.5, 0.5)];
+}
+
+- (void)focusDidComplete {
+    [self setAdjustingFocus:NO];
+    
+    if (needsContinuousFocus) {
+        needsContinuousFocus = NO;
+        [self continuousFocusAtPoint:self.focusPointOfInterest];
+    }
+}
+
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
+    if (context == FocusContext) {
+        BOOL isFocusing = [[change objectForKey:NSKeyValueChangeNewKey] boolValue];
+        if (isFocusing) {
+            [self setAdjustingFocus:YES];
+        } else {
+            [self focusDidComplete];
+        }
+    } else if (context == ExposureContext) {
+        BOOL isAdjustingExposure = [[change objectForKey:NSKeyValueChangeNewKey] boolValue];
+        
+        [self setAdjustingExposure:isAdjustingExposure];
+    }
+}
 
 @end

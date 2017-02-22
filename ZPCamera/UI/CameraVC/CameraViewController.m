@@ -15,6 +15,7 @@
 #import "FilterDisplayView.h"
 #import <AssetsLibrary/AssetsLibrary.h>
 #import "TipView.h"
+#import "FocusBoxLayer.h"
 
 #define kDefaultDuration 30.0
 
@@ -31,6 +32,7 @@
 @property (nonatomic, strong) FilterDisplayView *filterView;
 
 @property (nonatomic, strong) TipView *tipView;
+@property (nonatomic, strong) FocusBoxLayer *focusBox;
 
 @end
 
@@ -43,7 +45,6 @@
     self.lastTimeArray = [NSMutableArray array];
     self.lineViewArray = [NSMutableArray array];
     self.filterMaps = [NSMutableArray arrayWithArray:[FilterMap filterMap]];
-    //    self.currentFilterIndex = 0;
     
     NSString *sessionPreset = [RecorderTools bestCaptureSessionPresetCompatibleWithAllDevices];
     [self.view addSubview:self.cameraView];
@@ -66,37 +67,15 @@
     [self.cameraView insertSubview:self.filterView belowSubview:self.cameraView.topContainerBar];
     
     [self triggerFlashForMode:self.cameraView.flashMode];
-    
-    UISwipeGestureRecognizer *leftSwipeGesture = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(swipeLeftDone)];
-    leftSwipeGesture.direction = UISwipeGestureRecognizerDirectionLeft;
-    [self.filterView addGestureRecognizer:leftSwipeGesture];
-    
-    UISwipeGestureRecognizer *rightSwipeGesture = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(swipeRightDone)];
-    rightSwipeGesture.direction = UISwipeGestureRecognizerDirectionRight;
-    [self.filterView addGestureRecognizer:rightSwipeGesture];
-    
-    CGFloat popHeight = 35.0;
-    CGRect popRect = [self.cameraView.bottomContainerBar convertRect:self.cameraView.triggerButton.frame toView:self.view];
-    popRect.origin.y = popRect.origin.y - popHeight - 5;
-    popRect.size.width = 140;
-    popRect.size.height = popHeight;
-    
-    self.tipView = [[TipView alloc] initWithFrame:popRect];
-    self.tipView.centerX = self.view.centerX;
-    [self.view addSubview:self.tipView];
-    
-    [self updateTimeRecordedLabel];
     [self checkDeviceSupportFlash];
     
-    [self performSelector:@selector(hideTipView) withObject:nil afterDelay:1.5];
-}
-
-- (void)adjustCamera {
-    if ([self.videoCamera cameraPosition] == AVCaptureDevicePositionBack) {
-        self.videoCamera.outputImageOrientation = UIInterfaceOrientationLandscapeRight;
-    } else if ([self.videoCamera cameraPosition] == AVCaptureDevicePositionFront) {
-        self.videoCamera.outputImageOrientation = UIInterfaceOrientationLandscapeLeft;
-    }
+    [self setupGesture];
+    [self setupTipView];
+    
+    [self updateTimeRecordedLabel];
+    
+    self.focusBox = [[FocusBoxLayer alloc] init];
+    [self.cameraView.layer addSublayer:self.focusBox];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -122,14 +101,32 @@
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
-#pragma mark - override Method
-- (BOOL) prefersStatusBarHidden {
-    return YES;
+#pragma mark - ViewController Helper Method
+- (void)setupGesture {
+    UISwipeGestureRecognizer *leftSwipeGesture = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(swipeLeftDone)];
+    leftSwipeGesture.direction = UISwipeGestureRecognizerDirectionLeft;
+    [self.filterView addGestureRecognizer:leftSwipeGesture];
+    
+    UISwipeGestureRecognizer *rightSwipeGesture = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(swipeRightDone)];
+    rightSwipeGesture.direction = UISwipeGestureRecognizerDirectionRight;
+    [self.filterView addGestureRecognizer:rightSwipeGesture];
+    
+    UITapGestureRecognizer *tapToFocusGesture = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tapToFocus:)];
+    [self.filterView addGestureRecognizer:tapToFocusGesture];
 }
 
-- (void)deselectCollectionViewAtIndex:(NSInteger)index {
-    [self.cameraView collectionView:self.cameraView.filterCollectionView didDeselectItemAtIndexPath:[NSIndexPath indexPathForItem:index inSection:0]];
-    [self.cameraView.filterCollectionView deselectItemAtIndexPath:[NSIndexPath indexPathForItem:index inSection:0] animated:YES];
+- (void)setupTipView {
+    CGFloat popHeight = 35.0;
+    CGRect popRect = [self.cameraView.bottomContainerBar convertRect:self.cameraView.triggerButton.frame toView:self.view];
+    popRect.origin.y = popRect.origin.y - popHeight - 5;
+    popRect.size.width = 140;
+    popRect.size.height = popHeight;
+    
+    self.tipView = [[TipView alloc] initWithFrame:popRect];
+    self.tipView.centerX = self.view.centerX;
+    [self.view addSubview:self.tipView];
+    
+    [self performSelector:@selector(hideTipView) withObject:nil afterDelay:1.5];
 }
 
 - (void)hideTipView {
@@ -138,35 +135,6 @@
     } completion:^(BOOL finished) {
         self.tipView.hidden = YES;
     }];
-}
-
-- (void)swipeLeftDone {
-    [self deselectCollectionViewAtIndex:_currentFilterIndex];
-    if (self.currentFilterIndex < self.filterMaps.count - 1) {
-        self.currentFilterIndex = _currentFilterIndex + 1;
-        [self selectCellAtIndex:self.currentFilterIndex];
-    } else {
-        self.currentFilterIndex = self.filterMaps.count - 1;
-        [self selectCellAtIndex:self.currentFilterIndex];
-    }
-}
-
-- (void)swipeRightDone {
-    [self deselectCollectionViewAtIndex:_currentFilterIndex];
-    if (self.currentFilterIndex > 0) {
-        self.currentFilterIndex = _currentFilterIndex - 1;
-        [self selectCellAtIndex:self.currentFilterIndex];
-    } else {
-        self.currentFilterIndex = 0;
-        [self selectCellAtIndex:self.currentFilterIndex];
-    }
-}
-
-- (void)selectCellAtIndex:(NSInteger)currentIndex {
-    [self.cameraView collectionView:self.cameraView.filterCollectionView didSelectItemAtIndexPath:[NSIndexPath indexPathForItem:currentIndex inSection:0]];
-    [self.cameraView.filterCollectionView selectItemAtIndexPath:[NSIndexPath indexPathForItem:currentIndex inSection:0] animated:YES scrollPosition:UICollectionViewScrollPositionNone];
-    
-    [self.cameraView.filterCollectionView scrollToItemAtIndexPath:[NSIndexPath indexPathForItem:currentIndex inSection:0] atScrollPosition:UICollectionViewScrollPositionCenteredHorizontally animated:YES];
 }
 
 - (void)setCurrentFilterIndex:(NSInteger)currentFilterIndex {
@@ -194,36 +162,60 @@
     return CMTimeGetSeconds(currentTime);
 }
 
-- (void)updateTimeRecordedLabel {
-    float currentTime = [self getCurrentTime];
-    
-    @weakify(self)
-    dispatch_async(dispatch_get_main_queue(), ^{
-        @strongify(self)
-        [self.cameraView.progressView setProgress:currentTime / kDefaultDuration];
-        
-        if (currentTime >= kDefaultDuration) {
-            [self finishCapture];
-        }
-    });
-    
-}
-
-- (void)prepareSession {
-    if (self.videoCamera.session == nil) {
-    
-        RecordSession *session = [RecordSession recordSession];
-        session.fileType = AVFileTypeQuickTimeMovie;
-//        session.formatType = self.videoCamera.formatType;
-        self.videoCamera.session = session;
-    }
-    
-}
-
 - (void)checkDeviceSupportFlash {
-    AVCaptureDevice *device = self.videoCamera.gpuVideoInput.device;
-    if (!device.hasFlash) {
+    if (!self.videoCamera.hasFlash) {
         [self.cameraView.flashButton setEnabled:NO];
+    }
+}
+
+#pragma mark - override Method
+- (BOOL) prefersStatusBarHidden {
+    return YES;
+}
+
+#pragma mark - Gesture Method
+- (void)deselectCollectionViewAtIndex:(NSInteger)index {
+    [self.cameraView collectionView:self.cameraView.filterCollectionView didDeselectItemAtIndexPath:[NSIndexPath indexPathForItem:index inSection:0]];
+    [self.cameraView.filterCollectionView deselectItemAtIndexPath:[NSIndexPath indexPathForItem:index inSection:0] animated:YES];
+}
+
+- (void)selectCellAtIndex:(NSInteger)currentIndex {
+    [self.cameraView collectionView:self.cameraView.filterCollectionView didSelectItemAtIndexPath:[NSIndexPath indexPathForItem:currentIndex inSection:0]];
+    [self.cameraView.filterCollectionView selectItemAtIndexPath:[NSIndexPath indexPathForItem:currentIndex inSection:0] animated:YES scrollPosition:UICollectionViewScrollPositionNone];
+    
+    [self.cameraView.filterCollectionView scrollToItemAtIndexPath:[NSIndexPath indexPathForItem:currentIndex inSection:0] atScrollPosition:UICollectionViewScrollPositionCenteredHorizontally animated:YES];
+}
+
+- (void)swipeLeftDone {
+    [self deselectCollectionViewAtIndex:_currentFilterIndex];
+    if (self.currentFilterIndex < self.filterMaps.count - 1) {
+        self.currentFilterIndex = _currentFilterIndex + 1;
+        [self selectCellAtIndex:self.currentFilterIndex];
+    } else {
+        self.currentFilterIndex = self.filterMaps.count - 1;
+        [self selectCellAtIndex:self.currentFilterIndex];
+    }
+}
+
+- (void)swipeRightDone {
+    [self deselectCollectionViewAtIndex:_currentFilterIndex];
+    if (self.currentFilterIndex > 0) {
+        self.currentFilterIndex = _currentFilterIndex - 1;
+        [self selectCellAtIndex:self.currentFilterIndex];
+    } else {
+        self.currentFilterIndex = 0;
+        [self selectCellAtIndex:self.currentFilterIndex];
+    }
+}
+
+- (void)tapToFocus:(UIGestureRecognizer *)recognizer {
+    CGPoint tempPoint = (CGPoint)[recognizer locationInView:self.filterView];
+    CGPoint convertedFocusPoint = [self.videoCamera convertToPointOfInterestFromViewCoordinates:tempPoint];
+    
+    [self.focusBox drawaAtPointOfInterest:tempPoint andRemove:YES];
+    
+    if (self.videoCamera.focusSupported) {
+        [self.videoCamera focusAtPoint:convertedFocusPoint];
     }
 }
 
@@ -240,29 +232,27 @@
     return _cameraView;
 }
 
-#pragma mark - CameraManagerDelagate
-- (void)switchCamera {
-    if ([self.videoCamera hasMultipleCameras]) {
-        self.videoCamera.outputImageOrientation = UIInterfaceOrientationPortrait;
-        [self.videoCamera rotateCamera];
-        
-        if (self.videoCamera.cameraPosition == AVCaptureDevicePositionFront) {
-            [self.cameraView.flashButton setEnabled:NO];
-        } else {
-            if (self.videoCamera.gpuVideoInput.device.hasFlash) {
-                [self.cameraView.flashButton setEnabled:YES];
-            }
-        }
+- (void)prepareSession {
+    if (self.videoCamera.session == nil) {
+        RecordSession *session = [RecordSession recordSession];
+        session.fileType = AVFileTypeQuickTimeMovie;
+        self.videoCamera.session = session;
     }
 }
 
-- (void)triggerFlashForMode:(AVCaptureFlashMode)flashMode {
-    AVCaptureDevice *device = self.videoCamera.gpuVideoInput.device;
-    if ( [device isFlashModeSupported:flashMode] && device.flashMode != flashMode ) {
-        [self.videoCamera.inputCamera lockForConfiguration:nil];
-        [self.videoCamera.inputCamera setFlashMode:flashMode];
-        [self.videoCamera.inputCamera unlockForConfiguration];
-    }
+#pragma mark - CameraManagerDelagate
+- (void)updateTimeRecordedLabel {
+    float currentTime = [self getCurrentTime];
+    
+    @weakify(self)
+    dispatch_async(dispatch_get_main_queue(), ^{
+        @strongify(self)
+        [self.cameraView.progressView setProgress:currentTime / kDefaultDuration];
+        
+        if (currentTime >= kDefaultDuration) {
+            [self finishCapture];
+        }
+    });
 }
 
 - (void)saveAndShowSession:(RecordSession *)recordSession {
@@ -273,14 +263,6 @@
     videoPlayer.scaleButtonState = self.cameraView.scaleButtonState;
     videoPlayer.playType = VideoType;
     [self.navigationController pushViewController:videoPlayer animated:YES];
-}
-
-- (void)handleStopButtonTapped {
-    @weakify(self)
-    [self.videoCamera pause:^{
-        @strongify(self)
-        [self saveAndShowSession:self.videoCamera.session];
-    }];
 }
 
 - (void)captureImageDidFinish:(UIImage *)image withMetadata:(NSDictionary *)metadata {
@@ -314,10 +296,33 @@
     dispatch_async(dispatch_get_main_queue(), ^{
         self.cameraView.userInteractionEnabled = YES;
     });
-
 }
 
 #pragma mark - CameraViewDelegate
+- (void)triggerFlashForMode:(AVCaptureFlashMode)flashMode {
+    AVCaptureDevice *device = self.videoCamera.gpuVideoInput.device;
+    if ( [device isFlashModeSupported:flashMode] && device.flashMode != flashMode ) {
+        [self.videoCamera.inputCamera lockForConfiguration:nil];
+        [self.videoCamera.inputCamera setFlashMode:flashMode];
+        [self.videoCamera.inputCamera unlockForConfiguration];
+    }
+}
+
+- (void)switchCamera {
+    if ([self.videoCamera hasMultipleCameras]) {
+        self.videoCamera.outputImageOrientation = UIInterfaceOrientationPortrait;
+        [self.videoCamera rotateCamera];
+        
+        if (self.videoCamera.cameraPosition == AVCaptureDevicePositionFront) {
+            [self.cameraView.flashButton setEnabled:NO];
+        } else {
+            if (self.videoCamera.hasFlash) {
+                [self.cameraView.flashButton setEnabled:YES];
+            }
+        }
+    }
+}
+
 - (void)cameraViewStartRecording {
     if( ![CameraHelper checkAVAuthorizationStatus] ) {
         return;
@@ -414,6 +419,14 @@
     }
     
     return NO;
+}
+
+- (void)handleStopButtonTapped {
+    @weakify(self)
+    [self.videoCamera pause:^{
+        @strongify(self)
+        [self saveAndShowSession:self.videoCamera.session];
+    }];
 }
 
 - (void)finishCapture {

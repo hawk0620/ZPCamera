@@ -411,7 +411,6 @@ typedef enum {
 }
 
 - (void)applicationDidBecomeActive:(NSNotification *)notification {
-    NSLog(@"====");
     [self.player play];
 }
 

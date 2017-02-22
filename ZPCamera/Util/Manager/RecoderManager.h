@@ -27,7 +27,6 @@
 @property (assign, nonatomic) BOOL initializeSessionLazily;
 @property (assign, nonatomic) AVCaptureDevicePosition device;
 @property (assign, nonatomic) BOOL autoSetVideoOrientation;
-@property (assign, nonatomic) AVCaptureVideoOrientation videoOrientation;
 @property (assign, nonatomic) CMTime maxRecordDuration;
 @property (assign, nonatomic) CGFloat videoZoomFactor;
 
@@ -45,13 +44,25 @@
 
 @property (weak, nonatomic) id<RecoderManagerDelegate> __nullable recoderManagerDelegate;
 
+@property (readonly, nonatomic) BOOL exposureSupported;
+@property (readonly, nonatomic) BOOL focusSupported;
+
+@property (readonly, nonatomic) BOOL isAdjustingFocus;
+@property (readonly, nonatomic) BOOL isAdjustingExposure;
+
++ (BOOL)isSessionQueue;
+
 - (void)record;
 - (void)pause;
 - (void)pause:(void(^ __nullable)())completionHandler;
 - (void)captureImageForDeviceOrientation:(UIDeviceOrientation)deviceOrientation;
-
-+ (BOOL)isSessionQueue;
+- (void)reconfigureVideoInput:(BOOL)shouldConfigureVideo audioInput:(BOOL)shouldConfigureAudio;
 
 - (BOOL)hasMultipleCameras;
+- (BOOL)hasFlash;
+
+- (void)focusAtPoint:(CGPoint)point;
+- (void)continuousFocusAtPoint:(CGPoint)point;
+- (CGPoint)convertToPointOfInterestFromViewCoordinates:(CGPoint)viewCoordinates;
 
 @end

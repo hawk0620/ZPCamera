@@ -120,6 +120,7 @@
 		87E929C91E1D3CDB00010460 /* waldenMap.png in Resources */ = {isa = PBXBuildFile; fileRef = 87E9299F1E1D3CDB00010460 /* waldenMap.png */; };
 		87E929CA1E1D3CDB00010460 /* xproMap.png in Resources */ = {isa = PBXBuildFile; fileRef = 87E929A01E1D3CDB00010460 /* xproMap.png */; };
 		B62EA5A71E51668000257B5C /* TipView.m in Sources */ = {isa = PBXBuildFile; fileRef = B62EA5A61E51668000257B5C /* TipView.m */; };
+		B63170761E5D502200771DCE /* FocusBoxLayer.m in Sources */ = {isa = PBXBuildFile; fileRef = B63170751E5D502200771DCE /* FocusBoxLayer.m */; };
 		B65A23301DEEC92A00643F5F /* VideoConfiguration.m in Sources */ = {isa = PBXBuildFile; fileRef = B65A232F1DEEC92A00643F5F /* VideoConfiguration.m */; };
 		B65A23331DEEC94200643F5F /* MediaTypeConfiguration.m in Sources */ = {isa = PBXBuildFile; fileRef = B65A23321DEEC94200643F5F /* MediaTypeConfiguration.m */; };
 		B65A23361DEEC94C00643F5F /* AudioConfiguration.m in Sources */ = {isa = PBXBuildFile; fileRef = B65A23351DEEC94C00643F5F /* AudioConfiguration.m */; };
@@ -331,6 +332,8 @@
 		87E929A01E1D3CDB00010460 /* xproMap.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = xproMap.png; sourceTree = "<group>"; };
 		B62EA5A51E51668000257B5C /* TipView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TipView.h; sourceTree = "<group>"; };
 		B62EA5A61E51668000257B5C /* TipView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TipView.m; sourceTree = "<group>"; };
+		B63170741E5D502200771DCE /* FocusBoxLayer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FocusBoxLayer.h; sourceTree = "<group>"; };
+		B63170751E5D502200771DCE /* FocusBoxLayer.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = FocusBoxLayer.m; sourceTree = "<group>"; };
 		B65A232E1DEEC92A00643F5F /* VideoConfiguration.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VideoConfiguration.h; sourceTree = "<group>"; };
 		B65A232F1DEEC92A00643F5F /* VideoConfiguration.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = VideoConfiguration.m; sourceTree = "<group>"; };
 		B65A23311DEEC94200643F5F /* MediaTypeConfiguration.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MediaTypeConfiguration.h; sourceTree = "<group>"; };
@@ -664,6 +667,7 @@
 		872A7A0B1E253C0100051883 /* Animation */ = {
 			isa = PBXGroup;
 			children = (
+				B63170731E5D501500771DCE /* FocusBox */,
 				B67159291E4708720038E8A0 /* CustomTransition */,
 				870F0A681E403534002BB3C0 /* Indicator */,
 			);
@@ -788,6 +792,15 @@
 			path = FILTERSIMAGE;
 			sourceTree = "<group>";
 		};
+		B63170731E5D501500771DCE /* FocusBox */ = {
+			isa = PBXGroup;
+			children = (
+				B63170741E5D502200771DCE /* FocusBoxLayer.h */,
+				B63170751E5D502200771DCE /* FocusBoxLayer.m */,
+			);
+			path = FocusBox;
+			sourceTree = "<group>";
+		};
 		B67159291E4708720038E8A0 /* CustomTransition */ = {
 			isa = PBXGroup;
 			children = (
@@ -815,6 +828,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 872203C81C12D0EB0054D285 /* Build configuration list for PBXNativeTarget "ZPCamera" */;
 			buildPhases = (
+				10C23CE63BF525D28EC98B62 /* 📦 Check Pods Manifest.lock */,
 				CA5AB0E687B3554356D4A559 /* [CP] Check Pods Manifest.lock */,
 				E735C118A5AB489F3D613D1B /* [CP] Check Pods Manifest.lock */,
 				D36827002FA507ED0DD93772 /* [CP] Check Pods Manifest.lock */,
@@ -941,6 +955,21 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"${SRCROOT}/Pods/Target Support Files/Pods-ZPCamera/Pods-ZPCamera-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		10C23CE63BF525D28EC98B62 /* 📦 Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "📦 Check Pods Manifest.lock";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_ROOT}/../Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [[ $? != 0 ]] ; then\n    cat << EOM\nerror: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\nEOM\n    exit 1\nfi\n";
 			showEnvVarsInLog = 0;
 		};
 		32295BD4645CAA97AECD9612 /* [CP] Check Pods Manifest.lock */ = {
@@ -1151,6 +1180,7 @@
 				87A9297D1E41F7F9004240CF /* OpenShare+Alipay.m in Sources */,
 				872203F21C12D6E60054D285 /* UIImage+RoundedCorner.m in Sources */,
 				873D62311E3AE52C00BAE76D /* SutroFilter.m in Sources */,
+				B63170761E5D502200771DCE /* FocusBoxLayer.m in Sources */,
 				87A9297E1E41F7F9004240CF /* OpenShare+QQ.m in Sources */,
 				876E5D311E4438390058B855 /* FilterDisplayView.m in Sources */,
 				871B9B071DE974EB005564D2 /* SCContext.m in Sources */,
