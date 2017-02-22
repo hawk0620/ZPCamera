@@ -1,0 +1,4 @@
+language: objective-c
+xcode_project: ZPCamera.xcodeproj
+xcode_scheme: ZPCamera
+osx_image: xcode7.3
