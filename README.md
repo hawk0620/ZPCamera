@@ -5,6 +5,8 @@ An OpenSource Camera App.You can see the introduction in http://hawk0620.github.
 
 Osho camera is my independent development of a camera App, App Store Address: point me. It supports 1: 1, 4: 3, 16: 9 multi-resolution shooting, the filter can be in the viewfinder real-time preview, the shooting process can be synthesized with the filter in real time, support for sub-shooting, support back delete and other features. The following share to share the development of this App some experience, the end of the article will give the project download address, reading this article may need a little bit AVFoundation development basis.
 
+![Screenshot](https://github.com/irshadpc/ZPCamera/blob/master/3921d0ea-f561-11e6-92c2-ffc308d26460.jpeg?raw=true)
+
 # 1, GLKView and GPUImageVideoCamera
 
 The beginning of the frame view is based on GLKView, GLKView is Apple's encapsulation of OpenGL, we can use its callback function -glkView: drawInRect: done on the processed samplebuffer rendered work (samplebuffer is generated in the camera callback didOutputSampleBuffer Of the original version of the code:
