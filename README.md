@@ -1,4 +1,7 @@
+
 # ZPCamera
+[![Build Status](https://travis-ci.org/irshadpc/ZPCamera.svg?branch=master)](https://travis-ci.org/irshadpc/ZPCamera)
+
 An OpenSource Camera App.
 
 # Introduction
