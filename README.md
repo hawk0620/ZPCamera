@@ -1,5 +1,8 @@
+
 # ZPCamera
-An OpenSource Camera App.You can see the introduction in http://hawk0620.github.io/blog/2017/02/17/zpcamera-opensource-share/
+[![Build Status](https://travis-ci.org/irshadpc/ZPCamera.svg?branch=master)](https://travis-ci.org/irshadpc/ZPCamera)
+
+An OpenSource Camera App.
 
 # Introduction
 
@@ -156,4 +159,6 @@ Since the filter can render in the viewfinder in real time, I think GPUImageView
 
 Here to share an interesting process. App has three types of filters. Based on glsl, direct use of acv as well as direct use of lookuptable. Lookuptable fact photoshop can also be exported to a picture, but the general software will be its encryption, the following simple mention how I decompile the "borrow" a part of the filter software it. Use the Hopper Disassembler software to decompile, and then through some keyword search, lucky to find a method name of the following figure.
 
+## License
 
+Release under the [MIT License](https://github.com/irshadpc/ZPCamera/blob/master/LICENSE).

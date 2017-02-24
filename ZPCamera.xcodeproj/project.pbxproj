@@ -1315,6 +1315,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
+				CODE_SIGN_IDENTITY = "iPhone Developer: Vishnu Gopal (9W5B2P4YRQ)";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer: Vishnu Gopal (9W5B2P4YRQ)";
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEFINES_MODULE = NO;
 				DEVELOPMENT_TEAM = "";
@@ -1348,6 +1350,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.hawk.ZPCamera;
 				PRODUCT_NAME = Osho;
+				PROVISIONING_PROFILE = "4bad389f-7d8b-4b47-8773-33ba5f3bdae8";
 			};
 			name = Debug;
 		};
